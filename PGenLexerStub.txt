@@ -1,0 +1,53 @@
+from re import compile
+
+EOF = 'EOF'
+
+ws = compile(r'\s*', X)
+
+class PGParserError(Exception):
+    pass
+
+class PGLexer:
+    def __init__(self, text):
+        self.text = text
+        self.tok = ''
+        self.ttype = ''
+        g = ws.match(self.text)
+        if g != None:
+            self.text = self.text[g.end(0):]
+
+    def getTok(self):
+        if self.text == '':
+            self.tok = ''
+            self.ttype = EOF
+            return
+        else:
+            for lex in lexemeTable:
+                g = lex[0].match(self.text)
+                if g != None:
+                    self.tok = g.group(1)
+                    self.ttype = lex[1]
+                    self.text = self.text[g.end(0):]
+                    self.p()
+                    return
+
+        import sys
+        print 'invalid text: ', self.text[:10]
+        print '               ^'
+        sys.exit(0)
+
+    # match gets a token before checking it
+    def match(self, toktype):
+        if self.ttype != toktype:
+            self.error("expecting %s, found %s" % (toktype, self.ttype))
+
+    def error(self, str=None):
+        print 'error ',
+        if str != None:
+            print str
+
+    def p(self):
+        if 0:
+            print '-->lexer returned (%s, %s)' %(self.tok, self.ttype)
+
+

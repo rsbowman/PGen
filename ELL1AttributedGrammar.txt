@@ -1,0 +1,79 @@
+from PGenSemantics import PGenGrammar, Production, Composition, OrList
+from PGenSemantics import StarExpr, PlusExpr, Terminal, NonTerminal
+from PGenSemantics import Action
+
+from re import compile, X
+
+NONTERM = 'nonterm'
+GOESTO = '->'
+ACTION = 'action'
+END = '.'
+OR = '|'
+STAR = '*'
+PLUS = '+'
+EPSILON = 'epsilon'
+TERM = 'term'
+LP = '('
+RP = ')'
+
+NONTERMPatt = compile(r'<([a-zA-Z]\w*)>\s*', X) # verbose mode
+TERMPatt = compile(r'([a-zA-Z]\w*)\s*', X)
+ACTIONPatt = compile(r'\[\s*(.*?)\]\s*', X)
+GOESTOPatt = compile(r'(->)\s*', X)
+EPSILONPatt = compile(r'(epsilon)\s*', X)
+STARPatt = compile(r'(\*)\s*', X)
+PLUSPatt = compile(r'(\+)\s*', X)
+ORPatt = compile(r'(\|)\s*', X)
+ENDPatt = compile(r'(\.)\s*', X)
+RPPatt = compile(r'(\))\s*', X)
+LPPatt = compile(r'(\()\s*', X)
+
+%%
+
+<S>     ->      NONTERM [ lhs = @NONTERM ] GOESTO
+                <e> [ self.grammar.addProduction(Production(lhs, @<e>)) ] END
+                (NONTERM [ lhs = @NONTERM ] GOESTO
+                <e> [ self.grammar.addProduction(Production(lhs, @<e>)) ] END)*.
+
+<e>     ->      <t> [ @<e> = OrList(@<t>) ]
+                (OR <t> [ @<e>.append(@<t>) ])*.
+
+<t>     ->      <f> [ @<t> = Composition(@<f>) ]
+               (<f> [ @<t>.append(@<f>) ])*.
+
+<f>     ->      <g> [ @<f> = @<g> ]
+                ( STAR [ @<f> = StarExpr(@<g>) ]
+                | PLUS [ @<f> = PlusExpr(@<g>) ])+.
+
+<g>     ->      EPSILON ACTION+  
+        |       TERM [ @<g> = Terminal(self.lexer.tok) ]
+                (ACTION [ @<g>.addAction(Action(self.lexer.tok)) ])+
+        |       NONTERM [ @<g> = NonTerminal(self.lexer.tok) ]
+                (ACTION [ @<g>.addAction(Action(self.lexer.tok)) ])+
+        |       LP <e> [ @<g> = @<e> ] RP. 
+
+%%
+
+if __name__ == '__main__':
+    import sys
+    from PGenLexer import PGenLexer
+    import string
+
+    text = sys.stdin.read()
+    text = string.split(text, '%%')
+    if len(text) == 1:
+        pre, post = '', ''
+        text = text[0]
+    elif len(text) == 2:
+        pre = text[0]
+        post = ''
+        text = text[1]
+    else:
+        pre = text[0]
+        post = string.join(text[2:], '%%')
+        text = text[1]
+    
+    parser = PGParser(PGLexer(text))
+    parser.grammar = PGenGrammar(pre, post)
+    parser.S()
+    parser.grammar.writeParser(sys.stdout)
